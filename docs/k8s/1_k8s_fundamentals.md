@@ -934,3 +934,40 @@ Expose bằng ClusterIP Service
 Port-forward để test
 Xóa một Pod và quan sát Kubernetes tự tạo lại Pod mới
 ```
+
+## Đáp Án Gợi Ý Cho Câu Hỏi Tự Kiểm Tra
+
+### Ngày 1
+
+- Kubernetes quản lý desired state bằng cách lưu trạng thái mong muốn qua API Server vào `etcd`, rồi các controller liên tục so sánh trạng thái thực tế với trạng thái mong muốn. Nếu có lệch, controller tạo/cập nhật/xóa resource để kéo cluster về đúng trạng thái.
+- API Server là cổng giao tiếp trung tâm của cluster. `kubectl`, controller, scheduler và nhiều component khác đều nói chuyện với API Server.
+- Scheduler chọn Node phù hợp cho Pod mới. Kubelet chạy trên từng Node và đảm bảo container của Pod được chạy đúng trên Node đó.
+- Container runtime không phải Kubernetes. Nó là thành phần chạy container thật sự, ví dụ `containerd` hoặc CRI-O.
+
+### Ngày 2
+
+- Pod là tài nguyên tạm thời vì nó có thể bị xóa, restart, thay IP hoặc được tạo lại trên Node khác. Bạn không nên xem Pod như một server cố định.
+- Không nên gọi Pod IP trực tiếp vì Pod IP không ổn định. Client nên gọi qua Service để có DNS và virtual IP ổn định.
+- Một Pod có thể có nhiều container. Các container trong cùng Pod chia sẻ network namespace và có thể gọi nhau qua `localhost`.
+- Pod tạo trực tiếp không tự quay lại sau khi bị xóa vì không có controller như Deployment/ReplicaSet đứng phía sau để duy trì desired state.
+
+### Ngày 3
+
+- Deployment khác Pod trực tiếp ở chỗ Deployment quản lý vòng đời Pod thông qua ReplicaSet, có self-healing, scale, rolling update và rollback.
+- ReplicaSet đảm bảo luôn có số Pod mong muốn khớp với selector.
+- Selector phải match label trong Pod template vì ReplicaSet/Deployment dùng selector để biết Pod nào thuộc quyền quản lý của nó.
+- Khi xóa một Pod thuộc Deployment, ReplicaSet thấy số Pod thực tế ít hơn desired state nên tạo Pod mới.
+
+### Ngày 4
+
+- Label dùng để chọn, lọc và liên kết resource. Annotation dùng để lưu metadata phụ cho tool/controller, không dùng làm selector.
+- Service dùng selector để tìm các Pod phía sau và route traffic đến chúng.
+- Nếu selector của Deployment không match label trong Pod template, Deployment không thể quản lý đúng Pod. Kubernetes thường chặn một số cấu hình selector/template không hợp lệ vì selector của Deployment là phần rất quan trọng.
+- Namespace không phải cơ chế bảo mật tuyệt đối. Nó là cách chia tài nguyên theo không gian logic; bảo mật cần thêm RBAC, NetworkPolicy, quota và policy khác.
+
+### Ngày 5
+
+- Không nên gọi Pod IP trực tiếp vì Pod IP thay đổi khi Pod bị tạo lại. Service cung cấp tên DNS và virtual IP ổn định.
+- Service chọn Pod phía sau bằng selector match với label của Pod.
+- `port` là port mà Service expose. `targetPort` là port trên container/Pod mà Service forward traffic tới.
+- Khi Pod bị thay IP, Kubernetes cập nhật endpoints/EndpointSlice của Service, nên client vẫn gọi DNS Service như cũ.

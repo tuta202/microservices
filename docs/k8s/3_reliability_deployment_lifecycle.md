@@ -1047,3 +1047,40 @@ Cố tình làm readiness fail và quan sát endpoints
 Cố tình làm liveness fail và quan sát restart count
 Giải thích graceful shutdown cho HTTP service và RabbitMQ consumer
 ```
+
+## Đáp Án Gợi Ý Cho Câu Hỏi Tự Kiểm Tra
+
+### Ngày 11
+
+- Readiness khác container running ở chỗ container có thể đang chạy nhưng chưa sẵn sàng nhận traffic. Readiness mới quyết định Pod có vào Service endpoints hay không.
+- Nếu readiness fail, Pod không bị restart chỉ vì readiness fail. Nó bị loại khỏi endpoints để không nhận traffic mới.
+- Readiness ảnh hưởng Service endpoints vì Kubernetes chỉ đưa Pod ready vào danh sách backend của Service.
+- Health endpoint readiness nên kiểm tra những điều kiện thật sự cần để phục vụ request, ví dụ app đã load config, kết nối dependency bắt buộc, hoặc không ở trạng thái draining.
+
+### Ngày 12
+
+- Readiness dùng để báo Pod đã sẵn sàng nhận traffic hay chưa.
+- Liveness dùng để báo container có bị treo/hỏng đến mức cần restart hay không.
+- Startup probe dùng cho app khởi động chậm để tránh liveness restart app quá sớm.
+- Liveness không nên check database vì DB lỗi tạm thời có thể làm nhiều Pod bị restart hàng loạt, tạo restart storm.
+
+### Ngày 13
+
+- Scheduler dùng `requests` để chọn Node phù hợp cho Pod.
+- CPU limit thường gây throttling khi vượt giới hạn. Memory limit có thể làm container bị kill với `OOMKilled`.
+- Memory limit quá thấp khiến process vượt giới hạn bộ nhớ và bị kernel/Kubernetes kill.
+- QoS class ảnh hưởng mức ưu tiên khi Node thiếu tài nguyên. `BestEffort` dễ bị evict hơn `Burstable`, và `Guaranteed` được ưu tiên hơn.
+
+### Ngày 14
+
+- Rolling update phụ thuộc readiness để biết Pod version mới đã đủ sẵn sàng trước khi giảm dần Pod version cũ.
+- `maxUnavailable` giới hạn số Pod được phép unavailable trong rollout. `maxSurge` giới hạn số Pod được tạo thêm vượt quá replicas mong muốn.
+- Không nên dùng `latest` vì khó biết version thật đang chạy, khó rollback, khó audit và dễ deploy nhầm.
+- Khi rollout bị kẹt, kiểm tra `rollout status`, Pod status, events, logs, image pull, readiness probe và endpoints.
+
+### Ngày 15
+
+- Khi Pod terminate, Kubernetes gửi `SIGTERM` cho container, chờ grace period, rồi gửi `SIGKILL` nếu container chưa thoát.
+- `terminationGracePeriodSeconds` cho app thời gian shutdown tử tế trước khi bị kill mạnh.
+- `preStop` không thay thế graceful shutdown trong code. Nó chỉ là hook hỗ trợ; app vẫn cần xử lý SIGTERM.
+- RabbitMQ consumer nên dừng nhận message mới, hoàn tất message đang xử lý nếu có thể, ACK message đã xong, NACK/requeue message chưa xong, đóng channel/connection rồi exit.

@@ -847,3 +847,41 @@ Debug Service không có endpoint
 Liệt kê metric quan trọng cho từng service
 Hoàn thiện bộ manifest/chart cuối khóa cho ecommerce project
 ```
+
+## Đáp Án Gợi Ý Cho Câu Hỏi Tự Kiểm Tra
+
+### Ngày 21
+
+- Chart là gói template và metadata. Release là một lần chart được install vào cluster với một bộ values cụ thể.
+- `values.yaml` chứa giá trị cấu hình mặc định để template render ra manifest Kubernetes.
+- Nên chạy `helm template` trước khi install/upgrade để xem YAML cuối cùng, bắt lỗi indentation, biến sai hoặc resource render không đúng.
+- `helm rollback` rollback toàn bộ release Helm theo revision của Helm. `kubectl rollout undo` chỉ rollback một Deployment cụ thể.
+
+### Ngày 22
+
+- Không nên copy manifest cho từng môi trường vì dễ drift, sửa thiếu, khác biệt không rõ và khó bảo trì.
+- Các field thường khác giữa môi trường gồm replicas, resources, log level, ingress host, HPA, external dependencies, image tag và secret source.
+- Không nên commit secret production vào values file. Nên dùng secret manager hoặc cơ chế inject secret an toàn.
+- `helm upgrade --install` nghĩa là nếu release chưa tồn tại thì install, nếu đã tồn tại thì upgrade. Lệnh này phù hợp cho CI/CD.
+
+### Ngày 23
+
+- Khi Pod `CrashLoopBackOff`, nên xem `kubectl describe pod`, `kubectl logs`, và nếu container đã restart thì xem `kubectl logs --previous`.
+- Service không có endpoint thường do selector không match label Pod, Pod chưa ready hoặc sai namespace.
+- `kubectl logs --previous` dùng để xem logs của container instance trước đó sau khi container restart.
+- Debug từ trong cluster giúp kiểm tra DNS, Service routing và network giống góc nhìn của Pod thật, thay vì chỉ test từ máy local.
+
+### Ngày 24
+
+- Logs là sự kiện dạng text theo thời gian. Metrics là số đo định lượng như latency/error rate/CPU. Traces theo dõi một request đi qua nhiều service.
+- Với HTTP API, metric quan trọng gồm request rate, error rate, latency p95/p99, status code 5xx và dependency latency.
+- Với RabbitMQ consumer, metric quan trọng gồm queue depth, consumer lag, DLQ count, consume rate, retry count và processing duration.
+- Queue depth tăng liên tục thường cho thấy producer gửi nhanh hơn consumer xử lý, consumer lỗi, downstream chậm hoặc concurrency không đủ.
+- Alert nên gắn với user impact để tránh nhiễu. CPU cao ngắn hạn chưa chắc là lỗi, nhưng 5xx tăng hoặc latency p95 cao thì ảnh hưởng người dùng rõ hơn.
+
+### Ngày 25
+
+- Nên chuyển từ manifest rời rạc sang Helm khi có nhiều service/môi trường, nhiều giá trị lặp lại, cần release/rollback rõ ràng và muốn giảm copy/paste YAML.
+- Production readiness của backend service gồm image tag rõ ràng, probes, resources, config/secret tách riêng, Service đúng selector, rollout strategy, graceful shutdown, logging, metrics và rollback plan.
+- Dry-run trước deploy giúp phát hiện YAML sai, resource không hợp lệ hoặc template render sai trước khi thay đổi cluster thật.
+- Sau deploy cần quan sát rollout status, Pod readiness, events, logs, endpoints, HPA, error rate, latency, restart count và các metric dependency quan trọng.

@@ -973,3 +973,41 @@ Inject secret bằng Secret
 Tạo Ingress rule cơ bản
 Cố tình phá selector, targetPort, DNS và tự debug
 ```
+
+## Đáp Án Gợi Ý Cho Câu Hỏi Tự Kiểm Tra
+
+### Ngày 6
+
+- Pod không nên gọi Pod IP của nhau vì Pod IP là ephemeral. Khi Pod bị xóa hoặc reschedule, IP có thể đổi.
+- `localhost` trong một Pod là chính network namespace của Pod đó. Nó không trỏ đến service khác trong cluster.
+- Service DNS name được tạo từ tên Service và namespace, ví dụ `inventory-service.ecommerce.svc.cluster.local`.
+- Trong cùng namespace có thể dùng short name như `inventory-service`. Khi gọi khác namespace, nên dùng tên đầy đủ hơn như `inventory-service.ecommerce.svc.cluster.local` hoặc ít nhất `inventory-service.ecommerce`.
+
+### Ngày 7
+
+- ConfigMap dùng cho cấu hình không nhạy cảm như log level, timeout, tên host nội bộ, feature flag không bí mật.
+- Nên tách config khỏi image để cùng một image có thể chạy ở dev/staging/prod với cấu hình khác nhau.
+- `envFrom` inject toàn bộ key trong ConfigMap thành environment variables. `configMapKeyRef` chỉ lấy một key cụ thể.
+- Sau khi đổi ConfigMap dạng env, Pod thường cần restart vì environment variables được set khi container start, không tự đổi trong process đang chạy.
+
+### Ngày 8
+
+- Secret dùng cho dữ liệu nhạy cảm, ConfigMap dùng cho dữ liệu không nhạy cảm.
+- Base64 không phải encryption vì ai có dữ liệu base64 đều có thể decode ngược lại dễ dàng.
+- Không nên commit Secret production vào Git. Local lab có thể dùng ví dụ đơn giản, production thì không.
+- Production thường dùng external secret manager, External Secrets Operator, sealed secrets hoặc CI/CD secret injection, kèm RBAC và encryption at rest.
+
+### Ngày 9
+
+- Service expose network nội bộ hoặc kiểu load balancing tới Pod. Ingress định nghĩa rule HTTP/HTTPS từ ngoài cluster vào Service.
+- Ingress resource chỉ là cấu hình rule. Ingress Controller là component thật sự nhận traffic và thực thi rule đó.
+- Host-based routing dùng khi muốn route theo domain/subdomain, ví dụ `api.example.com` và `admin.example.com`.
+- Path-based routing dùng khi nhiều route HTTP chung một host, ví dụ `/api/orders` và `/api/payments`.
+- Không nên expose tất cả service ra ngoài vì tăng attack surface, rò rỉ internal API và làm kiến trúc khó kiểm soát hơn.
+
+### Ngày 10
+
+- Service không có endpoint thường do selector không match label Pod, Pod chưa ready, hoặc resource nằm khác namespace.
+- Sai selector làm Service không chọn được Pod nào. Sai `targetPort` có thể vẫn có endpoint nhưng traffic đi tới port sai trên Pod.
+- Sai DNS name thường gây lỗi resolve host hoặc gọi nhầm Service. Debug bằng Pod tạm với `curl`/`nslookup`.
+- Xóa Service không làm Pod chết, nhưng DNS name, virtual IP và routing qua Service sẽ biến mất.

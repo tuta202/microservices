@@ -967,3 +967,40 @@ Mount PVC cho workload
 Deploy PostgreSQL/RabbitMQ lab bằng StatefulSet
 Xóa Pod stateful và kiểm tra PVC vẫn còn
 ```
+
+## Đáp Án Gợi Ý Cho Câu Hỏi Tự Kiểm Tra
+
+### Ngày 16
+
+- HPA scale dựa trên metrics như CPU, memory hoặc custom metrics. Ví dụ phổ biến nhất là CPU utilization trung bình.
+- CPU request quan trọng vì HPA tính CPU utilization theo tỷ lệ giữa CPU đang dùng và CPU request.
+- Metrics server cung cấp resource metrics như CPU/memory cho Pod và Node để HPA và `kubectl top` sử dụng.
+- Stateless service dễ scale hơn vì mỗi replica gần như giống nhau, không cần identity cố định và không giữ dữ liệu local quan trọng.
+- Khi scale app làm DB quá tải, cần kiểm tra connection pool, số connection tổng, query latency, database CPU/memory/IO, queue depth, retry rate và downstream rate limit.
+
+### Ngày 17
+
+- Job chạy đến khi hoàn thành rồi dừng. Deployment chạy lâu dài và luôn cố giữ số replica mong muốn.
+- CronJob tạo Job theo lịch cron.
+- Dùng `concurrencyPolicy: Forbid` khi không muốn job mới chạy chồng lên job cũ, đặc biệt với cleanup/reconciliation dễ xử lý trùng dữ liệu.
+- Reconciliation job quan trọng trong hệ thống event-driven vì nó phát hiện và sửa các trạng thái bị kẹt, event thất lạc, saga chưa hoàn tất hoặc outbox backlog.
+
+### Ngày 18
+
+- Container filesystem không phù hợp để lưu database vì dữ liệu có thể mất khi container/Pod bị xóa hoặc tạo lại.
+- PVC là yêu cầu xin storage từ workload. PV là storage thật được Kubernetes bind cho PVC.
+- StorageClass định nghĩa cách provision storage, ví dụ loại disk, provisioner và policy.
+- `ReadWriteOnce` nghĩa là volume có thể được mount read-write bởi một Node tại một thời điểm.
+
+### Ngày 19
+
+- StatefulSet khác Deployment ở stable Pod identity, stable network identity, ordered deployment/termination và storage riêng cho từng replica.
+- StatefulSet cần stable identity vì nhiều hệ thống stateful cần biết node nào là node nào, ví dụ database replica hoặc broker node.
+- Headless Service cung cấp DNS trực tiếp cho từng Pod của StatefulSet thay vì một virtual IP load-balanced thông thường.
+- Không nên tự deploy database production chỉ vì biết StatefulSet vì production cần backup, restore, HA, failover, monitoring, security và upgrade strategy nghiêm túc.
+
+### Ngày 20
+
+- Khi xóa Pod của StatefulSet, PVC thường không bị xóa. Pod mới có thể mount lại PVC cũ.
+- App cần retry/reconnect khi RabbitMQ/PostgreSQL restart, đồng thời xử lý timeout, backoff và idempotency để tránh lỗi dây chuyền.
+- Local lab chạy DB trong cluster giúp học storage và lifecycle. Production nên thận trọng vì database/broker cần vận hành chuyên sâu, backup/HA/restore rõ ràng.
